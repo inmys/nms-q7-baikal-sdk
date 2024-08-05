@@ -1,0 +1,1 @@
+../../mipsel-unknown-linux-gnu/sysroot/lib/libstdc++.so.6.0.28-gdb.py

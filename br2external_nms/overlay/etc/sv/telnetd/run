@@ -1,0 +1,20 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=telnetd
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+#set default values
+export TELNETD_ADDR=${TELNETD_ADDR:-"0.0.0.0"}
+export TELNETD_PORT=${TELNETD_PORT:-"23"}
+export TELNETD_OPTS=${TELNETD_OPTS:-""}
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "TELNETD_"
+echo
+
+exec tcpsvd -vE ${TELNETD_ADDR} ${TELNETD_PORT} /usr/sbin/telnetd ${TELNETD_OPTS}

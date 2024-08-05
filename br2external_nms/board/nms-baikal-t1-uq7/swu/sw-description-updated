@@ -1,0 +1,57 @@
+software =
+{
+	version = "0.1.0";
+	description = "Firmware update";
+
+	stable = {
+		copy-0: {
+			scripts: (
+				{
+					filename = "preinstall.sh";
+					type = "preinstall";
+					sha256 = "sha256_preinstall.sh";
+				}
+			);
+			images: (
+				{
+					type = "flash";
+					filename = "rootfs.ubi";
+					path = "slota";
+					encrypted = true;
+					sha256 = "sha256_rootfs.ubi";
+				},
+			);
+			bootenv: (
+				{
+					name = "SMRT_UPDATED";
+					value = "1";
+				}
+			);
+		}
+		copy-1: {
+			scripts: (
+				{
+					filename = "preinstall.sh";
+					type = "preinstall";
+					sha256 = "sha256_preinstall.sh";
+				}
+			);
+			images: (		
+				{
+					type = "flash";
+					filename = "rootfs.ubi";
+					path = "slotb";
+					encrypted = true;
+					sha256 = "sha256_rootfs.ubi";
+				},
+
+			);
+			bootenv: (
+				{
+					name = "SMRT_UPDATED";
+					value = "1";
+				}
+			);
+		}
+	}
+}

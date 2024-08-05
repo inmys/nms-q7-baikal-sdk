@@ -1,0 +1,131 @@
+From 443f74494c49395faefbe9004bcc7251c3f91642 Mon Sep 17 00:00:00 2001
+From: Dmitry Bondar <bond@inmys.ru>
+Date: Wed, 23 Nov 2022 08:47:44 +0300
+Subject: [PATCH] add signaltek mb-npb-4-24-bt_v1 support to kernel
+
+---
+ drivers/usb/dwc3/ulpi.c | 68 ++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 64 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/usb/dwc3/ulpi.c b/drivers/usb/dwc3/ulpi.c
+index ffe3440ab..5d571f603 100644
+--- a/drivers/usb/dwc3/ulpi.c
++++ b/drivers/usb/dwc3/ulpi.c
+@@ -50,6 +50,8 @@ static int dwc3_ulpi_read(struct device *dev, u8 addr)
+ 	u32 reg;
+ 	int ret;
+ 
++	printk("dwc3_ulpi_read(beg): 0x%02x\n", (unsigned)addr);
++
+ 	reg = dwc3_readl(dwc->regs, DWC3_GUSB2PHYCFG(0));
+ 	if (reg & DWC3_GUSB2PHYCFG_SUSPHY) {
+ 		reg &= ~DWC3_GUSB2PHYCFG_SUSPHY;
+@@ -60,19 +62,29 @@ static int dwc3_ulpi_read(struct device *dev, u8 addr)
+ 	dwc3_writel(dwc->regs, DWC3_GUSB2PHYACC(0), reg);
+ 
+ 	ret = dwc3_ulpi_busyloop(dwc, addr, true);
+-	if (ret)
++	if (ret){
++		printk("dwc3_ulpi_busyloop ret: %d\n", ret);
+ 		return ret;
++	}
+ 
+ 	reg = dwc3_readl(dwc->regs, DWC3_GUSB2PHYACC(0));
+-
++#if 0
+ 	return DWC3_GUSB2PHYACC_DATA(reg);
++#else
++	{
++		int v = DWC3_GUSB2PHYACC_DATA(reg);
++		printk("dwc3_ulpi_read: 0x%02x=0x%02x\n", (unsigned)addr, (unsigned)v);
++		return v;
++	}
++#endif
+ }
+ 
+-static int dwc3_ulpi_write(struct device *dev, u8 addr, u8 val)
++static int dwc3_ulpi_write_(struct dwc3 *dwc, u8 addr, u8 val)
+ {
+-	struct dwc3 *dwc = dev_get_drvdata(dev);
+ 	u32 reg;
+ 
++	printk("dwc3_ulpi_write: 0x%02x=0x%02x\n", (unsigned)addr, (unsigned)val);
++
+ 	reg = dwc3_readl(dwc->regs, DWC3_GUSB2PHYCFG(0));
+ 	if (reg & DWC3_GUSB2PHYCFG_SUSPHY) {
+ 		reg &= ~DWC3_GUSB2PHYCFG_SUSPHY;
+@@ -83,16 +95,62 @@ static int dwc3_ulpi_write(struct device *dev, u8 addr, u8 val)
+ 	reg |= DWC3_GUSB2PHYACC_WRITE | val;
+ 	dwc3_writel(dwc->regs, DWC3_GUSB2PHYACC(0), reg);
+ 
++#if 0
+ 	return dwc3_ulpi_busyloop(dwc, addr, false);
++#else
++	{
++	int ret = dwc3_ulpi_busyloop(dwc, addr, false);
++	printk("dwc3_ulpi_write dwc3_ulpi_busyloop ret: %d\n", ret);
++	return ret;
++	}
++#endif
++}
++
++static int dwc3_ulpi_write(struct device *dev, u8 addr, u8 val)
++{
++	struct dwc3 *dwc = dev_get_drvdata(dev);
++	int ret = dwc3_ulpi_write_(dwc, addr, val);
++	if (ret >= 0)
++		return ret;
++	printk("dwc3_ulpi_write: sleep and try again\n");
++	msleep(1000);
++	return dwc3_ulpi_write_(dwc, addr, val);
+ }
+ 
++
+ static const struct ulpi_ops dwc3_ulpi_ops = {
+ 	.read = dwc3_ulpi_read,
+ 	.write = dwc3_ulpi_write,
+ };
+ 
++static ssize_t dwc3dbg_reg_value_read(struct file *filp, char __user *buffer, size_t count, loff_t *ppos)
++{
++	struct dwc3 *dwc = filp->private_data;
++	return count;
++}
++
++static ssize_t dwc3dbg_reg_value_write(struct file *filp, const char __user *buffer, size_t count, loff_t *ppos)
++{
++	struct dwc3 *dwc = filp->private_data;
++	unsigned int value;
++	ssize_t len;
++
++	dwc3_ulpi_write_(dwc, buffer[0], buffer[1]);
++
++	return count;
++}
++
++
++static const struct file_operations dwc3_reg_value_fops = {
++	.owner = THIS_MODULE,
++	.open = simple_open,
++	.read =  dwc3dbg_reg_value_read,
++	.write = dwc3dbg_reg_value_write,
++};
++
+ int dwc3_ulpi_init(struct dwc3 *dwc)
+ {
++	msleep(100);
+ 	/* Register the interface */
+ 	dwc->ulpi = ulpi_register_interface(dwc->dev, &dwc3_ulpi_ops);
+ 	if (IS_ERR(dwc->ulpi)) {
+@@ -100,6 +158,8 @@ int dwc3_ulpi_init(struct dwc3 *dwc)
+ 		return PTR_ERR(dwc->ulpi);
+ 	}
+ 
++	debugfs_create_file("dwc3_ulpi", 0600, usb_debug_root, dwc, &dwc3_reg_value_fops);
++
+ 	return 0;
+ }
+ 
+-- 
+2.25.1
+

@@ -1,0 +1,25 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=sshd
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+#set default values
+export SSHD_ADDR=${SSHD_ADDR:-"0.0.0.0"}
+export SSHD_PORT=${SSHD_PORT:-"22"}
+export SSHD_OPTS=${SSHD_OPTS:-""}
+export SSHD_RSAHOSTKEYFILE=${SSHD_RSAHOSTKEYFILE:-"/tmp/settings/sshd${INSTANCENUM}_keys/dropbear_rsa_host_key"}
+if [ ! -f ${SSHD_RSAHOSTKEYFILE} ]
+then
+	export SSHD_RSAHOSTKEYFILE="/etc/dropbear/dropbear_rsa_host_key"
+fi
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "SSHD_"
+echo
+
+exec tcpsvd -vE ${SSHD_ADDR} ${SSHD_PORT} /usr/sbin/dropbear -i -r ${SSHD_RSAHOSTKEYFILE} ${SSHD_OPTS}

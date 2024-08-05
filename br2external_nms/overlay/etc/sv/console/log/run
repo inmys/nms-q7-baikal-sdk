@@ -1,0 +1,6 @@
+#!/bin/sh
+
+export INSTANCENUM=`cat ../instancenum`
+
+sv start syslogd > /dev/null
+exec /usr/bin/logger -t console$INSTANCENUM

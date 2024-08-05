@@ -1,0 +1,15 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=acpid
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "ACPID_"
+echo
+
+exec /usr/sbin/acpid -f

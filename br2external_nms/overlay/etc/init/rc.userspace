@@ -1,0 +1,73 @@
+#!/bin/sh
+
+#setup userspace ( common userspace settings used by all services )
+export SERVICE=userspace
+export INSTANCENUM=""
+. /etc/libsh/loadsettings
+
+echo Init random numbers generator...
+RANDOM_SEEDFILE=${RANDOM_SEEDFILE:-"/mnt/store/random-seed"}
+# Load and then save 512 bytes,  which is the size of the entropy pool
+if [ -f $RANDOM_SEEDFILE ]; then
+	cat $RANDOM_SEEDFILE > /dev/urandom
+else
+	ifconfig > /dev/urandom
+fi
+umask 077
+dd if=/dev/urandom of=$RANDOM_SEEDFILE count=1 bs=512 >/dev/null 2>&1 || echo "urandom start: failed."
+umask 022
+
+
+# allow change same dirs (change saved in tmpfs and discard after reboot)
+RWDIR=${RWDIR:-"/tmp/rwdir"}
+
+overlaydirs='bin etc home root run usr var'
+for d in $overlaydirs
+do
+	mkdir -p ${RWDIR}/upper/${d}
+	mkdir -p ${RWDIR}/work/${d}
+	mount -t overlay -o "lowerdir=/${d},upperdir=${RWDIR}/upper/${d},workdir=${RWDIR}/work/${d}" overlay /${d}
+done
+
+echo Setting up root password...
+#root:root
+LOGIN_ROOTPASS=${LOGIN_ROOTPASS:-'$5$QEWL6sO.qykYh8Jo$Vu2KLr4fWLrEbXptyeZviyg6tDAGE1MuJ.jGPoq6Uh8'}
+echo "root:${LOGIN_ROOTPASS}" | chpasswd -e
+
+dns=${DNS1:-"8.8.8.8"}
+echo "nameserver $dns" > /etc/resolv.conf
+
+echo "Setting up services..."
+#do tmpfs on /var/service
+mount -t tmpfs tmpfs /var/service
+#do temp dir for services
+mkdir -p /tmp/services
+
+SERVICES_START=${SERVICES_START-"klogd syslogd telnetd sshd console0 swupdate0"}
+for service in $SERVICES_START
+do
+	AUTOSTART=1
+	if [ -f /tmp/settings/$service ]
+	then
+		. /tmp/settings/$service
+	fi
+	if [ "$AUTOSTART" = "1" ]
+	then
+		/usr/sbin/addservice.sh $service
+	fi
+done
+
+for service in `cd /tmp/settings && ls`
+do
+	AUTOSTART=0
+	if [ -f /tmp/settings/$service ]
+	then 
+		. /tmp/settings/$service
+	fi
+	if [ "$AUTOSTART" = "1" ]
+	then
+		/usr/sbin/addservice.sh $service
+	fi
+done
+
+

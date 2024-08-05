@@ -1,0 +1,7 @@
+export PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin
+# If running interactively, then:
+if [ "$PS1" ]; then
+	export PS1="[\u@\h \W]\\$ "
+	echo ""
+	echo "Welcome on board!"
+fi;	

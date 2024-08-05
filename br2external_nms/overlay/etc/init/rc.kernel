@@ -1,0 +1,64 @@
+#!/bin/sh
+
+# here we setup kernel (network, driver params)
+export SERVICE=kernel
+export INSTANCENUM=""
+. /etc/libsh/loadsettings
+
+echo Setting up devpts
+mkdir -p /dev/pts
+mount -t devpts -o "gid=5,mode=620" devpts /dev/pts
+
+echo Setting up /dev/shm
+mkdir -p /dev/shm
+mount -t devpts -o "mode=0777" tmpfs /dev/shm
+
+echo Setting machine name...
+if [ "$INDUSTRIAL_HOSTNAME" = "" ]
+then
+	cat /etc/hostname > /proc/sys/kernel/hostname
+else
+	echo "$INDUSTRIAL_HOSTNAME" > /proc/sys/kernel/hostname
+fi
+
+echo Setting up network ...
+ifconfig lo 127.0.0.1 up
+
+NETWORK_MODE=${NETWORK_MODE:-"static"}
+if [ "$NETWORK_MODE" = "static" ]
+then
+	NETWORK_IP=${NETWORK_IP:-"192.168.1.198"}
+	NETWORK_MASK=${NETWORK_MASK:-"255.255.255.0"}
+	ifconfig eth0 $NETWORK_IP netmask $NETWORK_MASK up
+else
+	udhcpc -b -i eth0
+fi
+
+NETWORK_MODE_1=${NETWORK_MODE_1:-"static"}
+if [ "$NETWORK_MODE_1" = "static" ]
+then
+	NETWORK_IP_1=${NETWORK_IP_1:-"192.168.2.198"}
+	NETWORK_MASK_1=${NETWORK_MASK_1:-"255.255.255.0"}
+	ifconfig eth1 $NETWORK_IP_1 netmask $NETWORK_MASK_1 up
+else
+	udhcpc -b -i eth1
+fi
+
+idx=0
+while /bin/true
+do
+	# get NETWORK_ROUTE_NET_0, NETWORK_ROUTE_GW_0, NETWORK_ROUTE_NET_1,NETWORK_ROUTE_GW_1,...
+	net=$(eval "echo \$NETWORK_ROUTE_NET_$idx")
+	gw=$(eval "echo \$NETWORK_ROUTE_GW_$idx")
+	if [ "$net" = "" ]
+	then
+		break;
+	fi
+	ip route add $net via $gw
+	let idx=$idx+1
+done
+if [ "$NETWORK_DEFAULT_GATEWAY" != "" ]
+then
+	ip route add default via $NETWORK_DEFAULT_GATEWAY
+fi
+

@@ -1,0 +1,14 @@
+--- buildroot-2022.02.7/package/nodejs/0003-v8_mips_compie_1.patch.orig	1970-01-01 00:00:00.000000000 +0000
++++ buildroot-2022.02.7/package/nodejs/0003-v8_mips_compie_1.patch	2022-11-26 13:48:55.160303840 +0000
+@@ -0,0 +1,11 @@
++--- nodejs-14.20.1/deps/v8/src/codegen/mips/constants-mips.h.orig	2022-11-26 13:48:49.588118388 +0000
+++++ nodejs-14.20.1/deps/v8/src/codegen/mips/constants-mips.h	2022-11-26 13:42:53.352334788 +0000
++@@ -140,7 +140,7 @@
++ namespace v8 {
++ namespace internal {
++ 
++-constexpr size_t kMaxPCRelativeCodeRangeInMB = 4096;
+++constexpr size_t kMaxPCRelativeCodeRangeInMB = 1024;
++ 
++ // -----------------------------------------------------------------------------
++ // Registers and FPURegisters.

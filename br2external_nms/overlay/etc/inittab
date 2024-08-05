@@ -1,0 +1,5 @@
+# Startup the system
+::sysinit:/etc/init/rc.sysinit
+
+# Start services
+::respawn:/usr/bin/runsvdir /var/service

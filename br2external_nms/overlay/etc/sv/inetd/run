@@ -1,0 +1,18 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=inetd
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+#set default values
+export INETD_CONF=${INETD_CONF:-"/etc/inetd.conf"}
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "INETD_"
+echo
+
+exec /usr/sbin/inetd -f ${INETD_CONF}

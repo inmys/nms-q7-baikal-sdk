@@ -1,0 +1,9 @@
+#!/bin/sh
+
+# load user settings :
+#  changed by web or by hand,
+#  can replce default
+if [ -f /tmp/settings/${SERVICE}${INSTANCENUM} ]
+then
+	. /tmp/settings/${SERVICE}${INSTANCENUM}
+fi

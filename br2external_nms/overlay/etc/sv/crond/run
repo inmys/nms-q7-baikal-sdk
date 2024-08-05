@@ -1,0 +1,19 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=crond
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+#set default values
+export CROND_WDIR=${CROND_WDIR:-"/var/spool/cron/crontabs"}
+mkdir -p ${CROND_WDIR}
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "CROND_"
+echo
+
+exec /usr/sbin/crond -f -c ${CROND_WDIR} -L /proc/self/fd/1

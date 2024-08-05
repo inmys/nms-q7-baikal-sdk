@@ -1,0 +1,24 @@
+software =
+{
+	version = "0.1.0";
+	description = "Firmware confirm";
+
+	stable = {
+		copy-0: {
+			bootenv: (
+				{
+					name = "SMRT_CONFIRMED";
+					value = "1";
+				}
+			);
+		}
+		copy-1: {
+			bootenv: (
+				{
+					name = "SMRT_CONFIRMED";
+					value = "1";
+				}
+			);
+		}
+	}
+}

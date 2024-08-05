@@ -1,0 +1,187 @@
+/*
+ * Baikal-T1 uq7 SOM
+ */
+
+/dts-v1/;
+
+#include <dt-bindings/interrupt-controller/mips-gic.h>
+#include <dt-bindings/gpio/gpio.h>
+
+#include  "baikal_t1_soc.dtsi"
+
+/ {
+	model = "Baikal-T1 uq7 SOM";
+	compatible = "baikal,mips", "baikal,baikal-t1-soc", "inmys,baikal-t1-uq7";
+	#address-cells = <1>;
+	#size-cells = <2>;
+
+	chosen {
+		bootargs = "root=/dev/ram rw rootwait console=ttyS0,115200n8 earlyprintk=uart8250,mmio32,0x1F04A000,115200 maxcpus=2 nohtw";
+		linux,initrd-start = <0x01000000>;
+		linux,initrd-end   = <0x02000000>;
+	};
+
+	memory {
+		device_type = "memory";
+		reg = <0x00000000 0 0x08000000>,
+		      <0x20000000 0 0x78000000>;
+		/*2048 MBytes memory on SOM*/
+	};
+	leds {
+		compatible = "gpio-leds";
+		status {
+			label = "status";
+			gpios = <&portb 0 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+		};
+	};
+};
+
+&usb {
+	status = "okay";
+};
+
+&sata {
+	status = "okay";
+};
+
+&pci {
+	status = "okay";
+};
+
+&gmac0 {
+	status = "okay";
+};
+
+&gmac1 {
+	status = "okay";
+};
+
+&xgmac {
+	status = "disabled";
+};
+
+&gpio {
+	status = "okay";
+};
+
+&gpio3 {
+	status = "okay";
+};
+
+&i2c0 {
+	status = "okay";
+};
+
+&i2c1 {
+	rtc@68 {
+		compatible = "nxp,pcf8523";
+		reg = <0x68>;
+	};
+	eeprom50: eeprom@50 {
+		compatible = "atmel,24c02";
+		reg = <0x52>;
+	};
+	eeprom51: eeprom@51 {
+		compatible = "atmel,24c02";
+		reg = <0x53>;
+	};
+};
+
+&uart1 {
+	status = "okay";
+};
+
+&bc {
+	status = "okay";
+};
+
+&spi0 {
+	num-cs = <1>;
+	cs-gpios = <&portb 2 GPIO_ACTIVE_LOW>;
+
+	status = "okay";
+
+	spi-flash@0 { /*512MB spi-nand flash */
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "spi-nand";
+		/*spi-max-frequency = <104000000>;*/
+		spi-max-frequency = <100000000>;
+		spi-tx-bus-width = <1>;
+		spi-rx-bus-width = <1>;
+		reg = <0>;
+		partition@00000000 {
+			label = "slota";
+			reg = <0x00000000 0xe000000>; /*224 MB*/
+		};
+		partition@0e000000 {
+			label = "slotb";
+			reg = <0x0e000000 0xe000000>; /*224 MB*/
+		};
+		partition@1c000000 {
+			label = "configs";
+			reg = <0x1c000000 0>; /*extend to the end (64MB for 512MB nand)*/
+		};
+	};
+};
+
+&spi1 {
+	status = "okay";
+	num-cs = <1>;
+	/*cs-gpios = <&portb 2 GPIO_ACTIVE_LOW>;*/
+
+	spidev1@0 {
+		/* for spidev_test */
+		compatible = "rohm,dh2228fv";
+		reg = <0>;
+#if 1
+		spi-max-frequency = <30000000>;
+#endif
+	};
+};
+
+&spi2 {
+	num-cs = <1>;
+	status = "okay";
+
+	flash@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		status = "okay";
+		compatible = "jedec,spi-nor";
+		reg = <0>;
+		spi-max-frequency = <100000>;
+
+		/* total size 16MB */
+		part@0 {
+			label = "bootloader";
+			reg = <0x0 0xc0000>;
+		};
+		part@c0000 {
+			label = "environment";
+			reg = <0xc0000 0x10000>;
+		};
+		part@d0000 {
+			label = "information";
+			reg = <0xd0000 0x10000>;
+		};
+		part@e0000 {
+			label = "fdt";
+			reg = <0xe0000 0x10000>;
+		};
+		part@f0000 {
+			label = "fitimage";
+			reg = <0xf0000 0xf10000>;
+		};
+	};
+};
+
+&pvt {
+	status = "okay";
+};
+
+&efuse {
+	status = "okay";
+};
+

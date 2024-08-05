@@ -1,0 +1,21 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=tftpd
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+#set default values
+export TFTPD_WDIR=${TFTPD_WDIR:-"/mnt/nand/tftpboot"}
+mkdir -p ${TFTPD_WDIR}
+
+export TFTPD_OPTS=${TFTPD_OPTS:-"-c"}
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "TFTPD_"
+echo
+
+exec udpsvd -vE 0.0.0.0 69 tftpd -l ${TFTPD_OPTS} ${TFTPD_WDIR}

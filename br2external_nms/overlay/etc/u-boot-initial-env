@@ -1,0 +1,138 @@
+SMRT_CNT_NO_CONFIRM=0
+SMRT_CONFIRMED=0
+SMRT_STATE=BAD
+SMRT_UPDATED=0
+SMRT_WAIT_UPDATE_IN=1
+addboard=setenv bootargs ${bootargs} board_name=${board_name}
+addfb=setenv bootargs ${bootargs} video=sma750fb:1600x900-16@60
+addhw=setenv bootargs ${bootargs} nohtw stmmaceth=chain_mode:1
+addip=setenv bootargs ${bootargs} ip=:::::${netdev}:dhcp
+addmisc=setenv bootargs ${bootargs} earlyprintk=uart8250,mmio32,0x1F04B000,${baudrate} maxcpus=${num_cores}
+addtty=setenv bootargs ${bootargs} console=ttyS1,${baudrate}n8
+addubifs=setenv bootargs ${bootargs} ubi.mtd=${mtdidx} root=ubi0:rootfs rootfstype=ubifs ro
+all_bootm=bootm ${uimage_addr_n} ${initrd_addr_n} ${fdt_addr_n}
+all_setup_initramfs=setenv initrd_len ${initramfs_file_size}; setenv initrd_file_name ${initramfs_file_name}
+baudrate=115200
+board_name=BFK3
+bootcmd=bootmenu
+bootdelay=2
+bootmenu_0=1.  Boot from SPI flash to minimal FS (rom + ramdisk)=run flash_boot_ram
+bootmenu_1=2.  Boot from SPI flash to SATA disk1 (rom + sda1)=run flash_boot_disk1
+bootmenu_10=11. Boot from Network to SATA disk1 (dhcp + tftp + sda1)=run dhcp_setup_disk1; run net_load_all_dhcp; run all_bootm
+bootmenu_11=12. Boot from Network to SATA disk2 (dhcp + tftp + sdb1)=run dhcp_setup_disk2; run net_load_all_dhcp; run all_bootm
+bootmenu_12=13. Boot from Network to minimal FS (nfs + ramdisk)=run net_setup_ram; run net_load_all_nfs; run all_bootm
+bootmenu_13=14. Boot from Network to SATA disk1 (nfs + sda1)=run net_setup_disk1; run net_load_all_nfs; run all_bootm
+bootmenu_14=15. Boot from Network to SATA disk2 (nfs + sdb1)=run net_setup_disk2; run net_load_all_nfs; run all_bootm
+bootmenu_15=16. Boot from USB storage to minimal FS (rom + ramdisk)=run usb_setup_ram; run all_bootm
+bootmenu_16=17. Boot from SPI NAND=run spinanboot
+bootmenu_2=3.  Boot from SPI flash to SATA disk2 (rom + sdb1)=run flash_boot_disk2
+bootmenu_3=4.  Boot from SATA disk1 to minimal FS (disk1 + ramdisk)=run sata_setup_ram; run all_bootm
+bootmenu_4=5.  Boot from SATA disk1 (sda1)=run sata_setup_disk1; run all_bootm
+bootmenu_5=6.  Boot from SATA disk2 (sdb1)=run sata_setup_disk2; run all_bootm
+bootmenu_6=7.  Boot from Network to minimal FS (tftp + ramdisk)=run net_setup_ram; run net_load_all_tftp; run all_bootm
+bootmenu_7=8.  Boot from Network to SATA disk1 (tftp + sda1)=run net_setup_disk1; run net_load_all_tftp; run all_bootm
+bootmenu_8=9.  Boot from Network to SATA disk2 (tftp + sdb1)=run net_setup_disk2; run net_load_all_tftp; run all_bootm
+bootmenu_9=10. Boot from Network to minimal FS (dhcp + tftp + ramdisk)=run net_common_ram; run net_load_all_dhcp; run all_bootm
+bootmenu_default=15
+build_image=Baikal-T1 BFK3 boot ROM image
+build_target=bfk3
+build_version=5.6
+cpu_rev=0
+cpu_serial=0xA5A5A5
+cpufreq=1200
+dhcp_setup_disk1=run all_setup_initramfs; run net_common_disk1
+dhcp_setup_disk2=run all_setup_initramfs; run net_common_disk2
+diskargs1=setenv bootargs ${bootargs} root=${sata_dev1} rw rootwait
+diskargs2=setenv bootargs ${bootargs} root=${sata_dev2} rw rootwait
+dnsip=192.168.65.10
+enet=8
+enet_mode=x:n
+ethact=eth0
+fdt_addr_n=0x800E0000
+fdt_file_name=baikal_t1_npb.dtb
+fdt_len=0x00040000
+fdtcontroladdr_=87b3b6b0
+flash_boot_disk1=run flash_load; run diskargs1 addtty addmisc addhw addfb addboard kdb; bootm ${multi_addr_n}#conf@2
+flash_boot_disk2=run flash_load; run diskargs2 addtty addmisc addhw addfb addboard kdb; bootm ${multi_addr_n}#conf@2
+flash_boot_ram=run flash_load; run ramargs addtty addmisc addhw addfb addboard; bootm ${multi_addr_n}#conf@1
+flash_load=sf probe; mtd read fitimage ${multi_addr_n}; setenv initrd_high
+gatewayip=192.168.68.1
+hostname=baikal
+image_name=bfk3.rom
+initramfs_file_name=uInitramfs
+initramfs_file_size=0x00375CF9
+initrd_addr_n=0x86000000
+initrd_file_name=uInitrd
+initrd_high=no
+initrd_len=0x01000000
+initrd_start=${initrd_addr_n}
+ipaddr=192.168.68.230
+kdb=setenv bootargs ${bootargs} kgdboc=ttyS1
+loadaddr=0x80000000
+memory_high_paddr=0x20000000
+memory_high_size=0xdffffff0
+memory_low_paddr=0x00000000
+memory_low_size=0x08000000
+mgmt_enet=e
+mtdids=nor0=boot_flash,spi-nand0=rootfs_flash
+mtdparts=mtdparts=boot_flash:768k@0x0(bootloader)ro,64k@0xC0000(environment),64k@0xD0000(information)ro,64k@0xE0000(fdt)ro,-@0xf0000(fitimage)ro;rootfs_flash:224m(slota),224m(slotb),-(configs)
+multi_addr_n=0x86000000
+net_common_disk1=run diskargs1 addtty addmisc addhw addboard;
+net_common_disk2=run diskargs2 addtty addmisc addhw addboard;
+net_common_netdisk=run nfsargs addip addtty addmisc addhw addboard;
+net_common_ram=run ramargs addtty addmisc addhw addboard
+net_init=ping ${serverip}
+net_load_all_dhcp=run net_load_kernel_dhcp; run net_load_initrd_tftp; run net_load_fdt_tftp
+net_load_all_nfs=run net_load_kernel_nfs; run net_load_initrd_nfs; run net_load_fdt_nfs
+net_load_all_tftp=run net_load_kernel_tftp; run net_load_initrd_tftp; run net_load_fdt_tftp
+net_load_fdt_nfs=setenv loadaddr ${fdt_addr_n}; setenv bootfile ${nfsroot}/${fdt_file_name}; nfs; fdt addr ${fdt_addr_n}
+net_load_fdt_tftp=setenv loadaddr ${fdt_addr_n}; setenv bootfile ${fdt_file_name}; tftp; fdt addr ${fdt_addr_n};
+net_load_initrd_nfs=setenv loadaddr ${initrd_addr_n}; setenv bootfile ${nfsroot}/${initrd_file_name}; nfs; setenv initrd_len ${filesize}
+net_load_initrd_tftp=setenv loadaddr ${initrd_addr_n}; setenv bootfile ${initrd_file_name}; tftp; setenv initrd_len ${filesize}
+net_load_kernel_dhcp=setenv loadaddr ${uimage_addr_n}; setenv bootfile ${uimage_file_name}; dhcp
+net_load_kernel_nfs=setenv loadaddr ${uimage_addr_n}; setenv bootfile ${nfsroot}/${uimage_file_name}; nfs
+net_load_kernel_tftp=setenv loadaddr ${uimage_addr_n}; setenv bootfile ${uimage_file_name}; tftp
+net_setup_disk1=run all_setup_initramfs; run net_init; run net_common_disk1
+net_setup_disk2=run all_setup_initramfs; run net_init; run net_common_disk2
+net_setup_netdisk=run all_setup_initramfs; run net_init; run net_common_netdisk
+net_setup_ram=run net_init; run net_common_ram
+netdev=eth1
+netmask=255.255.255.0
+nfsargs=setenv bootargs ${bootargs} root=/dev/nfs rw rootwait nfsroot=${serverip}:${nfsroot} rw rootwait
+nfsroot=/nfsroot/debian
+num_cores=2
+ramargs=setenv bootargs ${bootargs} root=/dev/ram rw rootwait
+rgmii_phyid=3
+sata=0x3c
+sata_common_disk1=run sata_load_all; run diskargs1 addtty addmisc addhw addboard kdb;
+sata_common_disk2=run sata_load_all; run diskargs2 addtty addmisc addhw addboard kdb;
+sata_common_ram=run sata_load_all; run ramargs addtty addmisc addhw addboard;
+sata_dev1=/dev/sda1
+sata_dev2=/dev/sdb1
+sata_enet=e:e:n:n
+sata_load_all=run sata_load_kernel; run sata_load_initrd; run sata_load_fdt
+sata_load_fdt=echo Loading FDT: ${fdt_file_name}; load scsi ${sata_port}:1 ${fdt_addr_n} ${fdt_file_name}; fdt addr ${fdt_addr_n}
+sata_load_initrd=echo Loading ramdisk: ${initrd_file_name}; load scsi ${sata_port}:1 ${initrd_addr_n} ${initrd_file_name}; setenv initrd_len ${filesize}
+sata_load_kernel=echo Loading kernel: ${uimage_file_name}; load scsi ${sata_port}:1 ${uimage_addr_n} ${uimage_file_name}
+sata_setup_disk1=setenv sata_port 0; run all_setup_initramfs; run sata_common_disk1;
+sata_setup_disk2=setenv sata_port 1; run all_setup_initramfs; run sata_common_disk2;
+sata_setup_ram=run sata_common_ram;
+sataphy=100
+serverip=192.168.68.10
+spinanboot=smartboot bootslot; ubi part slot${bootslot}; run ubifs_load; if test "$bootslot" = "b"; then setenv mtdidx 1; else setenv mtdidx 0; fi;run addubifs addtty addmisc addhw; bootm ${uimage_addr_n} - ${fdt_addr_n}
+ubifs_load=ubifsmount ubi0:rootfs; ubifsload ${uimage_addr_n} boot/${uimage_file_name}; ubifsload ${fdt_addr_n} boot/${fdt_file_name}
+uboot_addr_f=0x00000000
+uboot_initramfs=setenv uimage_file_name uImage; setenv initrd_file_name uInitramfs; setenv initrd_high
+uboot_initrd=setenv uimage_file_name uImage; setenv initrd_file_name uInitrd; setenv initrd_high
+uboot_size=0xad129
+uimage_addr_n=0x85000000
+uimage_file_name=uImage.gz
+usb_dev=/dev/sdc1
+usb_fs=fat
+usb_init=usb start; sleep 1
+usb_load_all=run usb_load_kernel; run usb_load_initrd; run usb_load_fdt
+usb_load_fdt=echo Loading FDT: ${fdt_file_name}; fdt addr ${fdt_addr_n}; if test ${usb_fs} = 'fat'; then fatload usb 0:1 ${fdt_addr_n} ${fdt_file_name}; elif test ${usb_fs} = 'ext2'; then ext2load usb 0:1 ${fdt_addr_n} ${fdt_file_name}; elif test ${usb_fs} = 'ext4'; then ext4load usb 0:1 ${fdt_addr_n} ${fdt_file_name}; fi
+usb_load_initrd=echo Loading ramdisk: ${initrd_file_name}; setenv initrd_len ${filesize}; if test ${usb_fs} = 'fat'; then fatload usb 0:1 ${initrd_addr_n} ${initrd_file_name}; elif test ${usb_fs} = 'ext2'; then ext2load usb 0:1 ${initrd_addr_n} ${initrd_file_name}; elif test ${usb_fs} = 'ext4'; then ext4load usb 0:1 ${initrd_addr_n} ${initrd_file_name}; fi
+usb_load_kernel=echo Loading kernel: ${uimage_file_name}; if test ${usb_fs} = 'fat'; then fatload usb 0:1 ${uimage_addr_n} ${uimage_file_name}; elif test ${usb_fs} = 'ext2'; then ext2load usb 0:1 ${uimage_addr_n} ${uimage_file_name}; elif test ${usb_fs} = 'ext4'; then ext4load usb 0:1 ${uimage_addr_n} ${uimage_file_name}; fi
+usb_setup_ram=run usb_init; run usb_load_all; run ramargs addtty addmisc addhw addboard
+xgmii_phyid=:

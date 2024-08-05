@@ -1,0 +1,18 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=vsftpd
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+
+export VSFTPD_OPTS=${VSFTPD_OPTS:-"-oanonymous_enable=NO -olocal_enable=YES -owrite_enable=YES -olocal_umask=022"}
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "VSFTPD_"
+echo
+
+exec vsftpd -obackground=NO -olisten=YES -osyslog_enable=YES -osecure_chroot_dir=/mnt ${VSFTPD_OPTS}

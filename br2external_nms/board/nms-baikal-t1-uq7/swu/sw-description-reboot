@@ -1,0 +1,27 @@
+software =
+{
+	version = "0.1.0";
+	description = "Reboot device";
+
+	stable = {
+		copy-0: {
+			scripts: (
+				{
+					filename = "reboot.sh";
+					type = "postinstall";
+					sha256 = "sha256_reboot.sh";
+				}
+			);
+		}
+		copy-1: {
+			scripts: (
+				{
+					filename = "reboot.sh";
+					type = "postinstall";
+					sha256 = "sha256_reboot.sh";
+				}
+			);
+	
+		}
+	}
+}

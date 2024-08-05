@@ -1,0 +1,14 @@
+--- buildroot-2022.02.7/package/nodejs/0003-v8_mips_compie_2.patch.orig	1970-01-01 00:00:00.000000000 +0000
++++ buildroot-2022.02.7/package/nodejs/0003-v8_mips_compie_2.patch	2022-11-26 13:47:08.940773655 +0000
+@@ -0,0 +1,11 @@
++--- nodejs-14.20.1/deps/v8/src/common/globals.h.orig	2022-11-26 13:43:54.206335383 +0000
+++++ nodejs-14.20.1/deps/v8/src/common/globals.h	2022-11-26 13:44:12.278930698 +0000
++@@ -224,7 +224,7 @@
++ constexpr size_t kMinExpectedOSPageSize = 64 * KB;  // OS page on PPC Linux
++ #elif V8_TARGET_ARCH_MIPS
++ constexpr bool kPlatformRequiresCodeRange = false;
++-constexpr size_t kMaximalCodeRangeSize = 2048LL * MB;
+++constexpr size_t kMaximalCodeRangeSize = 512LL * MB;
++ constexpr size_t kMinimumCodeRangeSize = 0 * MB;
++ constexpr size_t kMinExpectedOSPageSize = 4 * KB;  // OS page.
++ #else

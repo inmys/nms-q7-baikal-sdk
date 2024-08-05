@@ -1,0 +1,93 @@
+diff --git a/drivers/mtd/nand/spi/gigadevice.c b/drivers/mtd/nand/spi/gigadevice.c
+index b13b39763..92b44ea3c 100644
+--- a/drivers/mtd/nand/spi/gigadevice.c
++++ b/drivers/mtd/nand/spi/gigadevice.c
+@@ -13,7 +13,7 @@
+ #define GD5FXGQ4XA_STATUS_ECC_1_7_BITFLIPS	(1 << 4)
+ #define GD5FXGQ4XA_STATUS_ECC_8_BITFLIPS	(3 << 4)
+ 
+-#define GD5FXGQ4UEXXG_REG_STATUS2		0xf0
++#define GD5FXGQ4UEXXG_REG_STATUS2		0xc0
+ 
+ #define GD5FXGQ4UXFXXG_STATUS_ECC_MASK		(7 << 4)
+ #define GD5FXGQ4UXFXXG_STATUS_ECC_NO_BITFLIPS	(0 << 4)
+@@ -36,6 +36,14 @@ static SPINAND_OP_VARIANTS(read_cache_variants_f,
+ 		SPINAND_PAGE_READ_FROM_CACHE_OP_3A(true, 0, 1, NULL, 0),
+ 		SPINAND_PAGE_READ_FROM_CACHE_OP_3A(false, 0, 0, NULL, 0));
+ 
++static SPINAND_OP_VARIANTS(read_cache_variants_1gq5,
++		SPINAND_PAGE_READ_FROM_CACHE_QUADIO_OP(0, 2, NULL, 0),
++		SPINAND_PAGE_READ_FROM_CACHE_X4_OP(0, 1, NULL, 0),
++		SPINAND_PAGE_READ_FROM_CACHE_DUALIO_OP(0, 1, NULL, 0),
++		SPINAND_PAGE_READ_FROM_CACHE_X2_OP(0, 1, NULL, 0),
++		SPINAND_PAGE_READ_FROM_CACHE_OP(true, 0, 1, NULL, 0),
++		SPINAND_PAGE_READ_FROM_CACHE_OP(false, 0, 1, NULL, 0));
++
+ static SPINAND_OP_VARIANTS(write_cache_variants,
+ 		SPINAND_PROG_LOAD_X4(true, 0, NULL, 0),
+ 		SPINAND_PROG_LOAD(true, 0, NULL, 0));
+@@ -132,6 +140,38 @@ static const struct mtd_ooblayout_ops gd5fxgq4_variant2_ooblayout = {
+ 	.free = gd5fxgq4_variant2_ooblayout_free,
+ };
+ 
++static int gd5fxgqx_variant2_ooblayout_ecc(struct mtd_info *mtd, int section,
++	struct mtd_oob_region *region)
++{
++	if (section)
++		return -ERANGE;
++
++	region->offset = 64;
++	region->length = 64;
++
++	return 0;
++}
++
++static int gd5fxgqx_variant2_ooblayout_free(struct mtd_info *mtd, int section,
++	struct mtd_oob_region *region)
++{
++	if (section)
++		return -ERANGE;
++
++	/* Reserve 1 bytes for the BBM. */
++	region->offset = 1;
++	region->length = 63;
++
++	return 0;
++}
++
++/* Valid for Q4/Q5 and Q6 (untested) devices */
++static const struct mtd_ooblayout_ops gd5fxgqx_variant2_ooblayout = {
++	.ecc = gd5fxgqx_variant2_ooblayout_ecc,
++	.free = gd5fxgqx_variant2_ooblayout_free,
++};
++
++
+ static int gd5fxgq4uexxg_ecc_get_status(struct spinand_device *spinand,
+ 					u8 status)
+ {
+@@ -240,6 +280,16 @@ static const struct spinand_info gigadevice_spinand_table[] = {
+ 		     SPINAND_HAS_QE_BIT,
+ 		     SPINAND_ECCINFO(&gd5fxgq4_variant2_ooblayout,
+ 				     gd5fxgq4ufxxg_ecc_get_status)),
++	SPINAND_INFO("AS5F14G04SND", 0x8f,
++			NAND_MEMORG(1, 2048, 128, 64, 4096, 80, 1, 1, 1),
++			NAND_ECCREQ(8, 512),
++			SPINAND_INFO_OP_VARIANTS(&read_cache_variants_1gq5,
++						&write_cache_variants,
++						&update_cache_variants),
++			SPINAND_HAS_QE_BIT,
++			SPINAND_ECCINFO(&gd5fxgqx_variant2_ooblayout,
++				gd5fxgq4uexxg_ecc_get_status)),
++
+ };
+ 
+ static int gigadevice_spinand_detect(struct spinand_device *spinand)
+@@ -257,6 +307,8 @@ static int gigadevice_spinand_detect(struct spinand_device *spinand)
+ 		did = (id[1] << 8) + id[2];
+ 	else if (id[0] == 0 && id[1] == SPINAND_MFR_GIGADEVICE)
+ 		did = id[2];
++	else if (id[0] == 0xff && id[1] == 0x52) /* [0]=0xff [1]=0x52 [2]=0x8f for AS5F14G04SND*/
++		did = id[2];
+ 	else
+ 		return 0;
+ 

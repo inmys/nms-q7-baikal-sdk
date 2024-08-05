@@ -1,0 +1,108 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=pppd
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+. /etc/libsh/modem
+
+# select sim
+GSM_SIMSWITCHMODE=${GSM_SIMSWITCHMODE:-0}
+case $GSM_SIMSWITCHMODE in
+	0 ) # manual sim selection
+		simnow=$(simslotselected)
+		simnext=${GSM_SIMSLOTACTIVE:-0}
+		;;
+	1 ) # auto switch
+		simnow=$(simslotselected)
+		if [ ! -f /tmp/pppd${INSTANCENUM}_startflag ]
+		then
+			# first start
+			simnext=${GSM_AUTOSTARTFROMSIM:-0}
+			touch /tmp/pppd${INSTANCENUM}_startflag
+		else
+			let simnext=\($simnow+1\)%2
+		fi
+		persist=yes
+		maxfail=$(eval "echo \${PPPD_MAXFAIL_${simnext}:-10}")
+		holdoff=$(eval "echo \${PPPD_HOLDOFF_${simnext}:-30}")
+		maxconnect=$(eval "echo \${PPPD_MAXCONNECT_${simnext}:-0}")
+		;;
+	2 ) # don't touch sim
+		;;
+esac
+
+if [ "$simnext" != "" ]
+then
+	let hname=$simnext+1
+	echo "use SIM $hname"
+	# safe sim switch procedure
+	gsmstate=$(gsmstate)
+	dogsmoff=0
+	doselsim=0
+	dogsmon=0
+	case ${gsmstate}_${simnow}_${simnext} in
+		0_0_0 ) dogsmon=1 ;;
+		0_0_1 ) doselsim=1; dogsmon=1 ;;
+		0_1_0 ) doselsim=1; dogsmon=1 ;;
+		0_1_1 ) dogsmon=1 ;;
+		1_0_0 ) ;;
+		1_0_1 ) dogsmoff=1; doselsim=1; dogsmon=1 ;;
+		1_1_0 ) dogsmoff=1; doselsim=1; dogsmon=1 ;;
+		1_1_1 ) ;;
+	esac
+	if [ "$dogsmoff" = "1" ]
+	then
+		gsmoff
+	fi
+	if [ "$doselsim" = "1" ]
+	then
+		simslotselect $simnext
+	fi
+	if [ "$dogsmon" = "1" ]
+	then
+		gsmon
+	fi
+fi
+
+#set default values
+pin=$(eval "echo \${PPPD_PIN_${simnext}}")
+user=$(eval "echo \${PPPD_USER_${simnext}:-"mts"}")
+pass=$(eval "echo \${PPPD_PASSWD_${simnext}:-"mts"}")
+apn=$(eval "echo \${PPPD_APN_${simnext}}")
+gprsinit=$(eval "echo \${PPPD_GPRSINISTRING_${simnext}}")
+
+#chat setup
+if [ "${gprsinit}" != "" ]
+then
+        export PPPD_GPRSINISTRING=${gprsinit}
+elif [ "${apn}" != ""  ]
+then
+        export PPPD_GPRSINISTRING="AT+CGDCONT=1,\"IP\",\"${apn}\",\"0.0.0.0\",0,0"
+else
+        export PPPD_GPRSINISTRING="AT+CGDCONT=1,\"IP\",\"internet.mts.ru\",\"0.0.0.0\",0,0"
+fi
+export CHAT_PIN_FILE=/tmp/pppd${INSTANCENUM}_pin
+echo $pin > $CHAT_PIN_FILE
+echo "${user} * ${pass} 0.0.0.0" > /etc/ppp/pap-secrets
+
+#pppd setup
+export PPPD_DEV=${PPPD_DEV:-"/dev/ttyS0"}
+export PPPD_OPT=${PPPD_OPT:-"${PPPD_DEV} 115200 call gprs defaultroute usepeerdns name $user"}
+if [ "${persist}" != "" ]
+then
+        export PPPD_OPT="$PPPD_OPT persist holdoff $holdoff maxfail $maxfail"
+fi
+if [ "${maxconnect}" != "" ]
+then
+        export PPPD_OPT="$PPPD_OPT maxconnect $maxconnect"
+fi
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "PPPD_"
+echo
+exec /usr/sbin/pppd ${PPPD_OPT}
+

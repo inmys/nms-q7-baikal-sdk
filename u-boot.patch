@@ -1,0 +1,542 @@
+diff --git a/arch/mips/dts/baikal_bfk3.dts b/arch/mips/dts/baikal_bfk3.dts
+index 3f356100..ed76dcdb 100644
+--- a/arch/mips/dts/baikal_bfk3.dts
++++ b/arch/mips/dts/baikal_bfk3.dts
+@@ -126,41 +126,27 @@
+ 
+ &spi0 {
+ 	reg-io-width = <4>;
+-	num-cs = <2>;
+-	cs-gpios = <&portb 0 GPIO_ACTIVE_HIGH>,
+-		<&portb 1 GPIO_ACTIVE_HIGH>;
++	num-cs = <1>;
++	cs-gpios = <&portb 2 GPIO_ACTIVE_HIGH>;
+ 
+ 	status = "okay";
++	spi-max-frequency = <50000000>;
+ 
+-	flash@0 {
++	spi-flash@0 { /*512MB spin-nand flash */
+ 		#address-cells = <1>;
+ 		#size-cells = <1>;
+-		status = "okay";
+-		compatible = "micron,n25q256a", "jedec,spi-nor";
++		compatible = "spi-nand";
++		spi-max-frequency = <104000000>;
++		spi-tx-bus-width = <1>;
++		spi-rx-bus-width = <1>;
+ 		reg = <0>;
+-		cs-gpio = <&portb 0 GPIO_ACTIVE_HIGH>;
+-		spi-max-frequency = <10000000>;
+-		/* m25p,fast-read; */
+-
+-		mtd@00000000 {
+-			label = "flash0";
+-			reg = <0x00000000 0x02000000>;
++		partition@0 {
++			label = "slota";
++			reg = <0x00000000 0x10000000>;
+ 		};
+-	};
+-
+-	flash@1 {
+-		#address-cells = <1>;
+-		#size-cells = <1>;
+-		status = "okay";
+-		compatible = "micron,n25q256a", "jedec,spi-nor";
+-		reg = <1>;
+-		cs-gpio = <&portb 1 GPIO_ACTIVE_HIGH>;
+-		spi-max-frequency = <10000000>;
+-		/* m25p,fast-read; */
+-
+-		mtd@00000000 {
+-			label = "flash0";
+-			reg = <0x00000000 0x02000000>;
++		partition@10000000 {
++			label = "slotb";
++			reg = <0x10000000 0x10000000>;
+ 		};
+ 	};
+ };
+@@ -169,7 +155,7 @@
+ 	num-cs = <1>;
+ 	cs-gpios = <&portb 2 GPIO_ACTIVE_LOW>;
+ 
+-	status = "okay";
++	status = "disabled";
+ };
+ 
+ &spi2 {
+diff --git a/board/baikal/bfk3/Makefile b/board/baikal/bfk3/Makefile
+index c8593ba1..5e24c3a3 100644
+--- a/board/baikal/bfk3/Makefile
++++ b/board/baikal/bfk3/Makefile
+@@ -5,3 +5,5 @@ ccflags-y += -I$(srctree)/board/baikal/common
+ ifeq ($(CONFIG_CUSTOM_SPD),y)
+ 	obj-y += $(patsubst "%", SPD_%.o, $(CONFIG_CUSTOM_SPD_FILE))
+ endif
++obj-y += SPD_som.o
++obj-y += cmd_smartboot.o
+diff --git a/board/baikal/bfk3/SPD_som.c b/board/baikal/bfk3/SPD_som.c
+new file mode 100644
+index 00000000..2f097ed2
+--- /dev/null
++++ b/board/baikal/bfk3/SPD_som.c
+@@ -0,0 +1,11 @@
++#include <stdint.h>
++const unsigned char ddr_user_spd[256] = {
++ 0x91, 0x10, 0x0b, 0x02, 0x04, 0x21, 0x02, 0x01, 0x02, 0x55, 0x01, 0x08, 0x0a, 0x00, 0xac, 0x00,
++ 0x6e, 0x78, 0x6e, 0x3c, 0x6e, 0x11, 0x18, 0x86, 0x20, 0x08, 0x3c, 0x3c, 0x00, 0xf0, 0x83, 0x8f,
++ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
++ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x33, 0x05,
++};
+diff --git a/board/baikal/bfk3/cmd_smartboot.c b/board/baikal/bfk3/cmd_smartboot.c
+new file mode 100644
+index 00000000..46acb2ae
+--- /dev/null
++++ b/board/baikal/bfk3/cmd_smartboot.c
+@@ -0,0 +1,247 @@
++/*
++ * Smart boot, Dmitry Bondar bond@inmys.ru
++ * (c) 2011 inmys.ru
++ * 
++ */
++#include <common.h>
++#include <config.h>
++#include <command.h>
++#include <env.h>
++
++//states
++#define ST_UPDATE_BAD            0
++#define ST_UPDATE_NOT_CONFIRM    1
++#define ST_UPDATE_CONFIRM        2
++
++#define MAX_RUN_WITHOUT_CONFIRM 3
++
++typedef struct uboot_vars_s
++{
++	int state;
++	int was_updated;
++	int was_confirmed;
++	int cnt_run_without_confirm;
++	int wait_update_in;
++} uboot_vars_t;
++
++
++char *int_state_to_str(int state);
++
++void state_machine_tick(uboot_vars_t *vars, int *vals_changed)
++{
++	*vals_changed = 0;
++
++	switch (vars->state) {
++		case ST_UPDATE_BAD:
++		case ST_UPDATE_CONFIRM:
++			if (vars->was_updated) {
++				printf("smartboot: %s: updated, wait confirm\n",
++						int_state_to_str(vars->state));
++				vars->state = ST_UPDATE_NOT_CONFIRM;
++				vars->was_updated = 0;
++				vars->was_confirmed = 0;
++				vars->cnt_run_without_confirm = 0;
++				//vars->wait_update_in; - not touch
++				*vals_changed = 1;
++			}
++			break;
++		case ST_UPDATE_NOT_CONFIRM:
++			if (vars->was_updated) {
++				puts("ST_UPDATE_NOT_CONFIRM: updated, wait confirm\n");
++				vars->was_updated = 0;
++				vars->was_confirmed = 0;
++				vars->cnt_run_without_confirm = 0;
++				//vars->wait_update_in; - not touch
++				*vals_changed = 1;
++			} else {
++				if (vars->was_confirmed) {
++					puts("ST_UPDATE_NOT_CONFIRM: confirmed\n");
++					vars->state = ST_UPDATE_CONFIRM;
++					vars->was_updated = 0;
++					vars->wait_update_in = (vars->wait_update_in + 1) % 2;
++					*vals_changed = 1;
++				} else {
++					puts("ST_UPDATE_NOT_CONFIRM: +1 to cnt_run_without_confirm\n");
++					vars->cnt_run_without_confirm++;
++					*vals_changed = 1;
++					if (vars->cnt_run_without_confirm
++							> MAX_RUN_WITHOUT_CONFIRM) {
++						puts("ST_UPDATE_NOT_CONFIRM: update not confirmed, switch to rescue\n");
++						vars->state = ST_UPDATE_BAD;
++						vars->was_updated = 0;
++						//vars->wait_update_in; - not touch
++					}
++				}
++			}
++			break;
++		default:
++			break;
++	}
++}
++
++#define STR_EQU 0
++
++int str_state_to_int(const char *str)
++{
++	int state;
++
++	if (strcmp(str, "BAD") == STR_EQU)
++		state = ST_UPDATE_BAD;
++	else if (strcmp(str, "NOT_CONFIRM") == STR_EQU)
++		state = ST_UPDATE_NOT_CONFIRM;
++	else if (strcmp(str, "CONFIRM") == STR_EQU)
++		state = ST_UPDATE_CONFIRM;
++	else {
++		puts("smartboot: wrong SMRT_STATE\n");
++		state = ST_UPDATE_BAD;
++	}
++	return state;
++}
++
++char *int_state_to_str(int state)
++{
++	switch (state) {
++		default:
++		case ST_UPDATE_BAD:
++			return "BAD";
++			break;
++		case ST_UPDATE_NOT_CONFIRM:
++			return "NOT_CONFIRM";
++			break;
++		case ST_UPDATE_CONFIRM:
++			return "CONFIRM";
++			break;
++	}
++}
++
++int store_vars(uboot_vars_t *vars)
++{
++	char buf[128];
++
++	env_set("SMRT_STATE", int_state_to_str(vars->state));
++	sprintf(buf, "%d", vars->was_updated);
++	env_set("SMRT_UPDATED", buf);
++	sprintf(buf, "%d", vars->was_confirmed);
++	env_set("SMRT_CONFIRMED", buf);
++	sprintf(buf, "%d", vars->cnt_run_without_confirm);
++	env_set("SMRT_CNT_NO_CONFIRM", buf);
++	sprintf(buf, "%d", vars->wait_update_in);
++	env_set("SMRT_WAIT_UPDATE_IN", buf);
++	return env_save();
++}
++
++//[min, max]
++int load_var(const char *name, int *val, int min, int max)
++{
++	char *str;
++
++	str = env_get(name);
++	if (!str)
++		return -1;
++	*val = simple_strtoul(str, NULL, 10);
++	if ((*val < min) || (*val > max))
++		return -1;
++	return 0;
++}
++
++void fill_default(uboot_vars_t *vars)
++{
++	vars->state = ST_UPDATE_BAD;
++	vars->cnt_run_without_confirm = 0;
++	vars->was_confirmed = 0;
++	vars->was_updated = 0;
++	vars->wait_update_in = 1;
++
++}
++
++void fill_default_ok(uboot_vars_t *vars)
++{
++	vars->state = ST_UPDATE_CONFIRM;
++	vars->cnt_run_without_confirm = 0;
++	vars->was_confirmed = 0;
++	vars->was_updated = 0;
++	vars->wait_update_in = 1;
++}
++
++int load_vars(uboot_vars_t *vars)
++{
++	char *str;
++
++	str = env_get("SMRT_STATE");
++	if (!str)
++		return -1;
++	vars->state = str_state_to_int(str);
++	if (vars->state < 0)
++		return -1;
++
++	if (load_var("SMRT_UPDATED", &(vars->was_updated), 0, 1) < 0)
++		return -1;
++	if (load_var("SMRT_CONFIRMED", &(vars->was_confirmed), 0, 1) < 0)
++		return -1;
++	if (load_var("SMRT_CNT_NO_CONFIRM", &(vars->cnt_run_without_confirm), 0,
++			MAX_RUN_WITHOUT_CONFIRM + 1) < 0)
++		return -1;
++	if (load_var("SMRT_WAIT_UPDATE_IN", &(vars->wait_update_in), 0, 1) < 0)
++		return -1;
++	return 0;
++}
++
++int export_active_slot(uboot_vars_t *vars, char *slot_variable_name)
++{
++	int active_slot;
++	char slot[2];
++	if (vars->state == ST_UPDATE_NOT_CONFIRM)
++		active_slot = vars->wait_update_in;
++	else
++		active_slot = (vars->wait_update_in + 1) % 2;
++	/* Android standard slot names are 'a', 'b', ... */
++	slot[0] = 'a' + active_slot;
++	slot[1] = '\0';
++	env_set(slot_variable_name, slot);
++	return 0;
++}
++
++static int
++do_smartboot(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
++{
++	uboot_vars_t vars;
++	int vals_changed;
++
++	if (argc != 2)
++		return CMD_RET_USAGE;
++
++	if (load_vars(&vars) != 0) {
++		puts("try write default\n");
++		fill_default(&vars);
++		vals_changed = 1;
++	} else {
++		state_machine_tick(&vars, &vals_changed);
++	}
++	if (vals_changed)
++		store_vars(&vars);
++	export_active_slot(&vars, argv[1]);
++	return 0;
++}
++
++U_BOOT_CMD(
++		smartboot,2, 0, do_smartboot,
++		"smartboot - boot with analyse history of prev boots (SMRT_STATE: BAD, NOT_CONFIRM, CONFIRM ) \n",
++		"- boot with analyse history of prev boots SMRT_STATE one of: BAD, NOT_CONFIRM, CONFIRM\n"
++);
++
++static int
++do_smartbootsetok(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
++{
++	uboot_vars_t vars;
++
++	// write default values
++	puts("write ok values for smartboot\n");
++	fill_default_ok(&vars);
++	return store_vars(&vars);
++}
++
++U_BOOT_CMD(
++		smartbootsetok, 1,    1,    do_smartbootsetok,
++		"smartbootsetok - set state SMRT_STATE to CONFIRM for smartboot \n",
++		"- set state SMRT_STATE to CONFIRM for smartboot\n"
++);
+diff --git a/board/baikal/bfk3/env.txt b/board/baikal/bfk3/env.txt
+new file mode 100644
+index 00000000..1b4e5f7b
+--- /dev/null
++++ b/board/baikal/bfk3/env.txt
+@@ -0,0 +1,138 @@
++SMRT_CNT_NO_CONFIRM=0
++SMRT_CONFIRMED=0
++SMRT_STATE=BAD
++SMRT_UPDATED=0
++SMRT_WAIT_UPDATE_IN=1
++addboard=setenv bootargs ${bootargs} board_name=${board_name}
++addfb=setenv bootargs ${bootargs} video=sma750fb:1600x900-16@60
++addhw=setenv bootargs ${bootargs} nohtw stmmaceth=chain_mode:1
++addip=setenv bootargs ${bootargs} ip=:::::${netdev}:dhcp
++addmisc=setenv bootargs ${bootargs} earlyprintk=uart8250,mmio32,0x1F04A000,${baudrate} maxcpus=${num_cores}
++addtty=setenv bootargs ${bootargs} console=ttyS0,${baudrate}n8
++addubifs=setenv bootargs ${bootargs} ubi.mtd=${mtdidx} root=ubi0:rootfs rootfstype=ubifs ro
++all_bootm=bootm ${uimage_addr_n} ${initrd_addr_n} ${fdt_addr_n}
++all_setup_initramfs=setenv initrd_len ${initramfs_file_size}; setenv initrd_file_name ${initramfs_file_name}
++baudrate=115200
++board_name=BFK3
++bootcmd=bootmenu
++bootdelay=2
++bootmenu_0=1.  Boot from SPI flash to minimal FS (rom + ramdisk)=run flash_boot_ram
++bootmenu_1=2.  Boot from SPI flash to SATA disk1 (rom + sda1)=run flash_boot_disk1
++bootmenu_10=11. Boot from Network to SATA disk1 (dhcp + tftp + sda1)=run dhcp_setup_disk1; run net_load_all_dhcp; run all_bootm
++bootmenu_11=12. Boot from Network to SATA disk2 (dhcp + tftp + sdb1)=run dhcp_setup_disk2; run net_load_all_dhcp; run all_bootm
++bootmenu_12=13. Boot from Network to minimal FS (nfs + ramdisk)=run net_setup_ram; run net_load_all_nfs; run all_bootm
++bootmenu_13=14. Boot from Network to SATA disk1 (nfs + sda1)=run net_setup_disk1; run net_load_all_nfs; run all_bootm
++bootmenu_14=15. Boot from Network to SATA disk2 (nfs + sdb1)=run net_setup_disk2; run net_load_all_nfs; run all_bootm
++bootmenu_15=16. Boot from USB storage to minimal FS (rom + ramdisk)=run usb_setup_ram; run all_bootm
++bootmenu_16=17. Boot from SPI NAND=run spinanboot
++bootmenu_2=3.  Boot from SPI flash to SATA disk2 (rom + sdb1)=run flash_boot_disk2
++bootmenu_3=4.  Boot from SATA disk1 to minimal FS (disk1 + ramdisk)=run sata_setup_ram; run all_bootm
++bootmenu_4=5.  Boot from SATA disk1 (sda1)=run sata_setup_disk1; run all_bootm
++bootmenu_5=6.  Boot from SATA disk2 (sdb1)=run sata_setup_disk2; run all_bootm
++bootmenu_6=7.  Boot from Network to minimal FS (tftp + ramdisk)=run net_setup_ram; run net_load_all_tftp; run all_bootm
++bootmenu_7=8.  Boot from Network to SATA disk1 (tftp + sda1)=run net_setup_disk1; run net_load_all_tftp; run all_bootm
++bootmenu_8=9.  Boot from Network to SATA disk2 (tftp + sdb1)=run net_setup_disk2; run net_load_all_tftp; run all_bootm
++bootmenu_9=10. Boot from Network to minimal FS (dhcp + tftp + ramdisk)=run net_common_ram; run net_load_all_dhcp; run all_bootm
++bootmenu_default=15
++build_image=Baikal-T1 BFK3 boot ROM image
++build_target=bfk3
++build_version=5.6
++cpu_rev=0
++cpu_serial=0xA5A5A5
++cpufreq=1200
++dhcp_setup_disk1=run all_setup_initramfs; run net_common_disk1
++dhcp_setup_disk2=run all_setup_initramfs; run net_common_disk2
++diskargs1=setenv bootargs ${bootargs} root=${sata_dev1} rw rootwait
++diskargs2=setenv bootargs ${bootargs} root=${sata_dev2} rw rootwait
++dnsip=192.168.65.10
++enet=8
++enet_mode=x:n
++ethact=eth0
++fdt_addr_n=0x800E0000
++fdt_file_name=baikal_t1_pico_itx.dtb
++fdt_len=0x00040000
++fdtcontroladdr_=87b3b6b0
++flash_boot_disk1=run flash_load; run diskargs1 addtty addmisc addhw addfb addboard kdb; bootm ${multi_addr_n}#conf@2
++flash_boot_disk2=run flash_load; run diskargs2 addtty addmisc addhw addfb addboard kdb; bootm ${multi_addr_n}#conf@2
++flash_boot_ram=run flash_load; run ramargs addtty addmisc addhw addfb addboard; bootm ${multi_addr_n}#conf@1
++flash_load=sf probe; mtd read fitimage ${multi_addr_n}; setenv initrd_high
++gatewayip=192.168.68.1
++hostname=baikal
++image_name=bfk3.rom
++initramfs_file_name=uInitramfs
++initramfs_file_size=0x00375CF9
++initrd_addr_n=0x86000000
++initrd_file_name=uInitrd
++initrd_high=no
++initrd_len=0x01000000
++initrd_start=${initrd_addr_n}
++ipaddr=192.168.68.230
++kdb=setenv bootargs ${bootargs} kgdboc=ttyS0
++loadaddr=0x80000000
++memory_high_paddr=0x20000000
++memory_high_size=0xdffffff0
++memory_low_paddr=0x00000000
++memory_low_size=0x08000000
++mgmt_enet=e
++mtdids=nor0=boot_flash,spi-nand0=rootfs_flash
++mtdparts=mtdparts=boot_flash:768k@0x0(bootloader)ro,64k@0xC0000(environment),64k@0xD0000(information)ro,64k@0xE0000(fdt)ro,-@0xf0000(fitimage)ro;rootfs_flash:224m(slota),224m(slotb),-(configs)
++multi_addr_n=0x86000000
++net_common_disk1=run diskargs1 addtty addmisc addhw addboard;
++net_common_disk2=run diskargs2 addtty addmisc addhw addboard;
++net_common_netdisk=run nfsargs addip addtty addmisc addhw addboard;
++net_common_ram=run ramargs addtty addmisc addhw addboard
++net_init=ping ${serverip}
++net_load_all_dhcp=run net_load_kernel_dhcp; run net_load_initrd_tftp; run net_load_fdt_tftp
++net_load_all_nfs=run net_load_kernel_nfs; run net_load_initrd_nfs; run net_load_fdt_nfs
++net_load_all_tftp=run net_load_kernel_tftp; run net_load_initrd_tftp; run net_load_fdt_tftp
++net_load_fdt_nfs=setenv loadaddr ${fdt_addr_n}; setenv bootfile ${nfsroot}/${fdt_file_name}; nfs; fdt addr ${fdt_addr_n}
++net_load_fdt_tftp=setenv loadaddr ${fdt_addr_n}; setenv bootfile ${fdt_file_name}; tftp; fdt addr ${fdt_addr_n};
++net_load_initrd_nfs=setenv loadaddr ${initrd_addr_n}; setenv bootfile ${nfsroot}/${initrd_file_name}; nfs; setenv initrd_len ${filesize}
++net_load_initrd_tftp=setenv loadaddr ${initrd_addr_n}; setenv bootfile ${initrd_file_name}; tftp; setenv initrd_len ${filesize}
++net_load_kernel_dhcp=setenv loadaddr ${uimage_addr_n}; setenv bootfile ${uimage_file_name}; dhcp
++net_load_kernel_nfs=setenv loadaddr ${uimage_addr_n}; setenv bootfile ${nfsroot}/${uimage_file_name}; nfs
++net_load_kernel_tftp=setenv loadaddr ${uimage_addr_n}; setenv bootfile ${uimage_file_name}; tftp
++net_setup_disk1=run all_setup_initramfs; run net_init; run net_common_disk1
++net_setup_disk2=run all_setup_initramfs; run net_init; run net_common_disk2
++net_setup_netdisk=run all_setup_initramfs; run net_init; run net_common_netdisk
++net_setup_ram=run net_init; run net_common_ram
++netdev=eth1
++netmask=255.255.255.0
++nfsargs=setenv bootargs ${bootargs} root=/dev/nfs rw rootwait nfsroot=${serverip}:${nfsroot} rw rootwait
++nfsroot=/nfsroot/debian
++num_cores=2
++ramargs=setenv bootargs ${bootargs} root=/dev/ram rw rootwait
++rgmii_phyid=3
++sata=0x3c
++sata_common_disk1=run sata_load_all; run diskargs1 addtty addmisc addhw addboard kdb;
++sata_common_disk2=run sata_load_all; run diskargs2 addtty addmisc addhw addboard kdb;
++sata_common_ram=run sata_load_all; run ramargs addtty addmisc addhw addboard;
++sata_dev1=/dev/sda1
++sata_dev2=/dev/sdb1
++sata_enet=e:e:n:n
++sata_load_all=run sata_load_kernel; run sata_load_initrd; run sata_load_fdt
++sata_load_fdt=echo Loading FDT: ${fdt_file_name}; load scsi ${sata_port}:1 ${fdt_addr_n} ${fdt_file_name}; fdt addr ${fdt_addr_n}
++sata_load_initrd=echo Loading ramdisk: ${initrd_file_name}; load scsi ${sata_port}:1 ${initrd_addr_n} ${initrd_file_name}; setenv initrd_len ${filesize}
++sata_load_kernel=echo Loading kernel: ${uimage_file_name}; load scsi ${sata_port}:1 ${uimage_addr_n} ${uimage_file_name}
++sata_setup_disk1=setenv sata_port 0; run all_setup_initramfs; run sata_common_disk1;
++sata_setup_disk2=setenv sata_port 1; run all_setup_initramfs; run sata_common_disk2;
++sata_setup_ram=run sata_common_ram;
++sataphy=100
++serverip=192.168.68.10
++spinanboot=smartboot bootslot; ubi part slot${bootslot}; run ubifs_load; if test "$bootslot" = "b"; then setenv mtdidx 1; else setenv mtdidx 0; fi;run addubifs addtty addmisc addhw; bootm ${uimage_addr_n} - ${fdt_addr_n}
++ubifs_load=ubifsmount ubi0:rootfs; ubifsload ${uimage_addr_n} boot/${uimage_file_name}; ubifsload ${fdt_addr_n} boot/${fdt_file_name}
++uboot_addr_f=0x00000000
++uboot_initramfs=setenv uimage_file_name uImage; setenv initrd_file_name uInitramfs; setenv initrd_high
++uboot_initrd=setenv uimage_file_name uImage; setenv initrd_file_name uInitrd; setenv initrd_high
++uboot_size=0xad129
++uimage_addr_n=0x85000000
++uimage_file_name=uImage.gz
++usb_dev=/dev/sdc1
++usb_fs=fat
++usb_init=usb start; sleep 1
++usb_load_all=run usb_load_kernel; run usb_load_initrd; run usb_load_fdt
++usb_load_fdt=echo Loading FDT: ${fdt_file_name}; fdt addr ${fdt_addr_n}; if test ${usb_fs} = 'fat'; then fatload usb 0:1 ${fdt_addr_n} ${fdt_file_name}; elif test ${usb_fs} = 'ext2'; then ext2load usb 0:1 ${fdt_addr_n} ${fdt_file_name}; elif test ${usb_fs} = 'ext4'; then ext4load usb 0:1 ${fdt_addr_n} ${fdt_file_name}; fi
++usb_load_initrd=echo Loading ramdisk: ${initrd_file_name}; setenv initrd_len ${filesize}; if test ${usb_fs} = 'fat'; then fatload usb 0:1 ${initrd_addr_n} ${initrd_file_name}; elif test ${usb_fs} = 'ext2'; then ext2load usb 0:1 ${initrd_addr_n} ${initrd_file_name}; elif test ${usb_fs} = 'ext4'; then ext4load usb 0:1 ${initrd_addr_n} ${initrd_file_name}; fi
++usb_load_kernel=echo Loading kernel: ${uimage_file_name}; if test ${usb_fs} = 'fat'; then fatload usb 0:1 ${uimage_addr_n} ${uimage_file_name}; elif test ${usb_fs} = 'ext2'; then ext2load usb 0:1 ${uimage_addr_n} ${uimage_file_name}; elif test ${usb_fs} = 'ext4'; then ext4load usb 0:1 ${uimage_addr_n} ${uimage_file_name}; fi
++usb_setup_ram=run usb_init; run usb_load_all; run ramargs addtty addmisc addhw addboard
++xgmii_phyid=:
+diff --git a/include/configs/baikal_bfk3.h b/include/configs/baikal_bfk3.h
+index c5d8468f..90406b12 100644
+--- a/include/configs/baikal_bfk3.h
++++ b/include/configs/baikal_bfk3.h
+@@ -23,7 +23,13 @@
+  * DDR parameters
+  *-----------------------------------------------
+  */
++/*custom spd: CONFIG_CUSTOM_SPD*/
++#if 0
+ #define BAIKAL_SPD_NAME		"eeprom@50"
++#else
++#define CONFIG_CUSTOM_SPD
++#endif
++
+ 
+ /*
+  *-----------------------------------------------
+@@ -63,7 +69,22 @@
+ /* Default variables */
+ #define CONFIG_PCI_BOOTDELAY		3
+ #define CONFIG_BOOTARGS			"mem=128M console=ttyS0,mmio32,115200"
++#if 0
+ #define CONFIG_BOOTCOMMAND 		"sf probe; sf read 0x81000000 0x00400000 0x00400000; bootm 0x81000000"
++#else
++#define CONFIG_EXTRA_ENV_SETTINGS \
++	"uimage_addr_n=0x85000000\0" \
++	"fdt_addr_n=0x800E0000\0" \
++	"load_dtb=sf read ${fdt_addr_n} ${dtb_offs} 0x00010000 \0" \
++	"load_kernel=sf read ${uimage_addr_n} ${k_offs} 0x00600000 \0" \
++	"bootargs_t=earlyprintk=uart8250,mmio32,0x1F04A000,115200 console=ttyS0,115200n8 nohtw stmmaceth=chain_mode:1 ro rootfstype=ubifs root=ubi0:rootfs\0" \
++	"init_bootargs=setenv bootargs \"$bootargs_t ubi.mtd=${mtdidx}\"\0" \
++	"bootslot_to_mtdpart=if test \"$bootslot\" = \"b\"; then setenv mtdidx 2; setenv k_offs 0x100000; setenv dtb_offs 0xe0000; else setenv mtdidx 1; setenv k_offs 0x100000 setenv dtb_offs 0xe0000 fi\0" \
++	"init_som=echo 'init_som stub'\0" \
++	"init_mb=echo 'init_mb stub'\0" \
++	"\0"
++#define CONFIG_BOOTCOMMAND "run init_mb; run init_som; smartboot bootslot; run bootslot_to_mtdpart; run init_bootargs; sf probe; run load_kernel; run load_dtb; bootm ${uimage_addr_n} - ${fdt_addr_n}"
++#endif
+ #define CONFIG_RAMBOOTCOMMAND 		""
+ #define CONFIG_NFSBOOTCOMMAND		""
+ #define CONFIG_ETHPRIME			"eth0"
+@@ -79,4 +100,7 @@
+ #define CONFIG_BOOTFILE			"uImage"
+ #define CONFIG_LOADADDR 		CONFIG_SYS_LOAD_ADDR
+ 
++#undef CONFIG_SYS_MALLOC_LEN
++#define CONFIG_SYS_MALLOC_LEN 0x400000 /*4MB - for ubifs*/
++
+ #endif /* __CONFIG_BE_BFK3_H */

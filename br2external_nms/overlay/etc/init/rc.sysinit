@@ -1,0 +1,83 @@
+#!/bin/sh
+
+wait_dev()
+{
+        for i in `seq 1 $2`; do
+                if [ -e $1 ]; then
+                        break
+                fi
+                echo "wait $1 ..."
+                sleep 1
+        done
+}
+
+
+#mount all in fstab (/proc, /sys, /tmp ...)
+mount -a
+
+#save boot log
+exec >/tmp/boot.log
+exec 2>&1
+
+echo Initializing system...
+
+# Saving last 128K of kernel log:
+dmesg -s 131072 >/tmp/dmesg.log
+
+#udev for access to /dev/disk/by-label/STORE
+echo Setting up eudev
+[ -e /proc/sys/kernel/hotplug ] && printf '\000\000\000\000' > /proc/sys/kernel/hotplug
+mkdir /tmp/run
+mount -o bind /tmp/run /run
+/sbin/udevd -d
+udevadm trigger --type=subsystems --action=add
+udevadm trigger --type=devices --action=add
+udevadm settle --timeout=30 || echo "udevadm settle failed"
+
+wait_dev /dev/disk/by-label/STORE1 5
+# mount /mnt/store (get access to /mnt/store/preup.sh and /mnt/store/settings/)
+mkdir -p /mnt/store
+if [ -e /dev/disk/by-label/STORE1 ]; then
+	fsck -fy /dev/disk/by-label/STORE1
+fi
+if ! mount -o sync LABEL=STORE1 /mnt/store; then
+	wait_dev /dev/disk/by-label/STORE 5
+	fsck -fy /dev/disk/by-label/STORE
+	mount -o sync LABEL=STORE /mnt/store
+fi
+if [ -f /mnt/store/preup.sh ]
+then
+	echo "run /mnt/store/preup.sh"
+	. /mnt/store/preup.sh
+else
+    echo "file /mnt/store/preup.sh not found"
+fi
+
+#get settings
+#preup.sh can set own /tmp/settings
+if [ ! -e /tmp/settings ]
+then
+	if [ ! -d /mnt/store/settings ]
+	then
+		echo "no settings found"
+		mkdir -p /mnt/store/settings/
+	else
+		echo "use settings from /mnt/store/settings"
+	fi
+	ln -s /mnt/store/settings /tmp/settings
+fi
+
+echo "Setting up kernel settings"
+/etc/init/rc.kernel
+
+echo "Setting up userspace settings"
+/etc/init/rc.userspace
+
+if [ -f /mnt/store/postup.sh ]
+then
+	echo "run /mnt/store/postup.sh"
+	. /mnt/store/postup.sh
+else
+    echo "file /mnt/store/postup.sh not found"
+fi
+

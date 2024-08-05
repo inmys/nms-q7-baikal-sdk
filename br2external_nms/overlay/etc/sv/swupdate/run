@@ -1,0 +1,17 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=swupdate
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+SMRT_WAIT_UPDATE_IN=`fw_printenv SMRT_WAIT_UPDATE_IN | cut -d '=' -f 2`
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "SWUPDATE_"
+echo
+
+exec /usr/bin/swupdate -v -e stable,copy-${SMRT_WAIT_UPDATE_IN} -w "--document-root /var/www/swupdate --port 8080" -k /etc/sign_public.pem -K /etc/update.key  ${SWUPDATE_OPTS} 

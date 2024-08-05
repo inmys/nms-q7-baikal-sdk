@@ -1,0 +1,17 @@
+/*
+ * Baikal-T1 uq7 SOM in Pico-ITX board
+ */
+
+/dts-v1/;
+
+#include  "baikal_t1_uq7_som.dts"
+
+&i2c0 {
+	status = "okay";
+	adc@48{
+		/* voltage on super capacitors*/
+		compatible = "pcf8591";
+		reg = <0x48>;
+	};
+};
+

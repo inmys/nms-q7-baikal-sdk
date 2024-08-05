@@ -1,0 +1,41 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=dnsmasq
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+#set default values
+export DNSMASQ_IFACE=${DNSMASQ_IFACE:-"usb0"}
+export DNSMASQ_DHCPIPPOOLSTART=${DNSMASQ_DHCPIPPOOLSTART:-"192.168.5.10"}
+export DNSMASQ_DHCPIPPOOLEND=${DNSMASQ_DHCPIPPOOLEND:-"192.168.5.190"}
+
+opts=${DNSMASQ_OPTS}
+opts="${opts} -u root"
+
+### DNS 
+# answer DNS on eth0
+opts="${opts} -i ${DNSMASQ_IFACE}"
+# don't read /etc/hosts
+opts="${opts} -h"
+# monitor /etc/resolv.conf
+opts="${opts} -r /etc/resolv.conf"
+
+### DHCP
+# ip pool on interface et0
+opts="${opts} -F interface:${DNSMASQ_IFACE},${DNSMASQ_DHCPIPPOOLSTART},${DNSMASQ_DHCPIPPOOLEND}"
+# leases
+opts="${opts} -l /mnt/nand/dnsmasq.leases"
+# log
+#opts="${opts} --log-dhcp"
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "DNSMASQ_"
+echo "opts: $opts"
+echo
+
+exec /usr/sbin/dnsmasq -k ${opts}
+

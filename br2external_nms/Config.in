@@ -1,0 +1,2 @@
+source "$BR2_EXTERNAL_nms_PATH/package/libwt/Config.in"
+

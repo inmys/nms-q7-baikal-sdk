@@ -1,0 +1,22 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=console
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+#set default values
+export GETTY_DEVICE=${GETTY_DEVICE:-/dev/tty$INSTANCENUM}
+export GETTY_SPEED=${GETTY_SPEED:-115200}
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "GETTY_"
+echo
+
+#do delay for other
+read -t 1 </dev/ptmx
+
+exec chpst -P /sbin/getty -i -L $GETTY_SPEED $GETTY_DEVICE vt100

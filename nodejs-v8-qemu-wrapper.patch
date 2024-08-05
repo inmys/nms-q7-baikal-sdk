@@ -1,0 +1,11 @@
+--- buildroot-2022.02.7/package/nodejs/v8-qemu-wrapper.in.orig	2022-11-26 14:16:00.724359110 +0000
++++ buildroot-2022.02.7/package/nodejs/v8-qemu-wrapper.in	2022-11-26 14:16:13.988813858 +0000
+@@ -2,7 +2,7 @@
+ 
+ # Pass -r to qemu-user as to trick glibc into not errorings out if the host kernel
+ # is older than the target kernel.
+-exec @QEMU_USER@ -r @TOOLCHAIN_HEADERS_VERSION@ \
++exec @QEMU_USER@ -r @TOOLCHAIN_HEADERS_VERSION@ -cpu P5600 \
+     @QEMU_USERMODE_ARGS@ \
+    -L "${STAGING_DIR}/" \
+     "$@"

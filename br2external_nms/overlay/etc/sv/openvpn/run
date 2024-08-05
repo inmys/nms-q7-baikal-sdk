@@ -1,0 +1,112 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=openvpn
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+export OPENVPN_OPTS=${OPENVPN_OPTS:-""}
+
+#hack -> remove after mdev fix
+mkdir -p /dev/net
+[ -c /dev/net/tun ] || ln -s /dev/tun /dev/net/tun
+
+if [ "${OPENVPN_CONFIGMODE}" = "0" ]
+then
+	#Config File
+	cddir="/tmp/settings/openvpn${INSTANCENUM}_usrconfig"
+	OPENVPN_OPTS="${OPENVPN_OPTS} --cd ${cddir}"
+	OPENVPN_OPTS="${OPENVPN_OPTS} --config ${cddir}/openvpn.conf"
+elif [ "${OPENVPN_CONFIGMODE}" = "1" ]
+then
+	#Web
+	OPENVPN_OPTS="${OPENVPN_OPTS} --comp-lzo --verb 3 --mute 10"
+	OPENVPN_OPTS="${OPENVPN_OPTS} --dev ${OPENVPN_DEVTYPE}"
+	OPENVPN_OPTS="${OPENVPN_OPTS} --cipher ${OPENVPN_CIPHER}"
+	case ${OPENVPN_WORKMODE} in
+		0) 
+			#Client
+			cddir="/tmp/settings/openvpn${INSTANCENUM}_guiclientconfig"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --proto ${OPENVPN_PROTOCOL}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --client --nobind --resolv-retry infinite --persist-key --persist-tun"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --remote ${OPENVPN_CONNECTADDR}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --port ${OPENVPN_CONNECTPORT}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --cd ${cddir}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --ca ca.crt"
+			if [ -f ${cddir}/ta.key ]
+			then
+				OPENVPN_OPTS="${OPENVPN_OPTS} --tls-auth ta.key 1"
+			fi
+			if [ "$OPENVPN_AUTHBY" = "0" ]
+			then
+				#Key file
+				OPENVPN_OPTS="${OPENVPN_OPTS} --cert client.crt"
+				OPENVPN_OPTS="${OPENVPN_OPTS} --key client.key"
+			else
+				#Password
+				mkdir -p ${cddir}
+				echo $OPENVPN_CLIENTAUTHNAME > ${cddir}/auth-user-pass.txt
+				echo $OPENVPN_CLIENTAUTHPASS >> ${cddir}/auth-user-pass.txt
+				OPENVPN_OPTS="${OPENVPN_OPTS} --auth-user-pass auth-user-pass.txt"
+			fi
+			OPENVPN_OPTS="${OPENVPN_OPTS} ${OPENVPN_CLIENTADDITIONALOPTS}"
+			;;
+		1)
+			#Server
+			cddir="/tmp/settings/openvpn${INSTANCENUM}_guiservconfig"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --proto ${OPENVPN_PROTOCOL}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --port ${OPENVPN_LISTENPORT}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --cd ${cddir}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --ca ca.crt"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --cert server.crt"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --key server.key"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --dh dh1024.pem"
+			if [ -f ${cddir}/ta.key ]
+			then
+				OPENVPN_OPTS="${OPENVPN_OPTS} --tls-auth ta.key 0"
+			fi
+			OPENVPN_OPTS="${OPENVPN_OPTS} --server ${OPENVPN_SERVIFCONFIG}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} ${OPENVPN_SERVADDITIONALOPTS}"
+			;;
+		2)
+			#P2P Client
+			if [ "${OPENVPN_PROTOCOL}" == "tcp" ]
+			then 
+				OPENVPN_OPTS="${OPENVPN_OPTS} --proto tcp-client"
+			fi
+			OPENVPN_OPTS="${OPENVPN_OPTS} --nobind --resolv-retry infinite --persist-key --persist-tun"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --remote ${OPENVPN_CONNECTADDR}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --port ${OPENVPN_CONNECTPORT}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --ifconfig ${OPENVPN_IFCONFIGLOCALIP} ${OPENVPN_IFCONFIGREMOTEIP}"
+			secretkey="/tmp/settings/openvpn${INSTANCENUM}_guip2pconfig/static.key"
+			if [ -f "$secretkey" ]
+			then
+				OPENVPN_OPTS="${OPENVPN_OPTS} --secret ${secretkey}"
+			fi
+			;;
+		3)
+			#P2P Server
+			if [ "${OPENVPN_PROTOCOL}" == "tcp" ]
+			then
+				OPENVPN_OPTS="${OPENVPN_OPTS} --proto tcp-server"
+			fi
+			OPENVPN_OPTS="${OPENVPN_OPTS} --port ${OPENVPN_LISTENPORT}"
+			OPENVPN_OPTS="${OPENVPN_OPTS} --ifconfig ${OPENVPN_IFCONFIGLOCALIP} ${OPENVPN_IFCONFIGREMOTEIP}"
+			secretkey="/tmp/settings/openvpn${INSTANCENUM}_guip2pconfig/static.key"
+			if [ -f "$secretkey" ]
+			then
+				OPENVPN_OPTS="${OPENVPN_OPTS} --secret ${secretkey}"
+			fi
+			;;
+	esac
+fi
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "OPENVPN_"
+echo
+
+sleep 3
+exec /usr/sbin/openvpn ${OPENVPN_OPTS}

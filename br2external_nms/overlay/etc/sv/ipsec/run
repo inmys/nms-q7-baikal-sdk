@@ -1,0 +1,269 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=ipsec
+# no instances
+export INSTANCENUM=""
+. /etc/libsh/loadsettings
+
+FILE_PSK=/etc/racoon/psk
+FILE_RACOON=/etc/racoon/racoon.conf
+FILE_SETKEY=/etc/racoon/setkey.conf
+FILE_LISTEN=/etc/racoon/listen.tmp
+
+
+get_param() {
+    eval "$1=`echo \\$IPSEC_${2}_${3}`"    
+}
+
+mkdir -p /etc/racoon
+[ -e "$FILE_PSK" ] && rm $FILE_PSK
+[ -e "$FILE_RACOON" ] && rm $FILE_RACOON
+[ -e "$FILE_SETKEY" ] && rm $FILE_SETKEY
+[ -e "$FILE_LISTEN" ] && rm $FILE_LISTEN
+  
+echo "" > $FILE_PSK
+echo "" > $FILE_RACOON
+echo "flush;" > $FILE_SETKEY
+echo "spdflush;" >> $FILE_SETKEY
+echo "" > $FILE_LISTEN
+
+ppp_ip=`ifconfig ppp0 | grep inet | awk '{print $2}' | sed 's/addr://'`
+echo $ppp_ip > /tmp/ip
+
+if [ ! -e  "/tmp/ip" ]; then
+	echo "There's no connection to WAN"
+	exit 2
+fi
+
+[ "${local_ipaddr}" == "" ] && local_ipaddr=`cat /tmp/ip`
+    
+cat << EOF > $FILE_RACOON
+path include "/etc/racoon";
+path pre_shared_key "$FILE_PSK";
+path certificate "$DIR_CERT";
+log info;
+padding
+{
+        maximum_length 20;      # maximum padding length.
+        randomize off;          # enable randomize length.
+        strict_check off;       # enable strict check.
+        exclusive_tail off;     # extract last one octet.
+}
+timer
+{
+        # These value can be changed per remote node.
+        counter 5;              # maximum trying count to send.
+        interval 20 sec;        # maximum interval to resend.
+        persend 1;              # the number of packets per a send.
+
+        # timer for waiting to complete each phase.
+        phase1 30 sec;
+        phase2 15 sec;
+}
+listen
+{
+        isakmp $local_ipaddr [500];
+        adminsock "/tmp/racoon.sock";
+EOF
+for i in `seq 0 4`; do
+	get_param nat_traversal NATT $i
+	get_param enabled ENABLE $i
+
+	if [ "$nat_traversal" = "1" ] && [ "$enabled" = "1" ]; then
+		echo "	isakmp_natt $local_ipaddr [4500];" >> $FILE_RACOON
+		break
+	fi
+done
+
+echo "}" >> $FILE_RACOON
+
+for i in `seq 0 4`; do
+	get_param enabled ENABLE $i
+	if [ "$enabled" != "1" ]; then
+		continue
+	fi
+
+	#reading params from config
+	get_param remote_ipaddr REMOTEIP $i
+	get_param remote_id REMOTEID $i
+	get_param remote_network REMOTESUBNET $i
+	get_param remote_netmask REMOTESUBNETMASK $i
+	get_param local_id LOCALID $i
+	get_param local_ipaddr LOCALIP $i
+	get_param local_network LOCALSUBNET $i
+	get_param local_netmask LOCALSUBNETMASK $i
+	get_param psk PRESHAREDKEY $i
+	get_param key_life PH1LIFETIME $i
+	get_param ike_life PH2LIFETIME $i
+	get_param rekey_margin REKEYMARGIN $i
+	get_param rekey_fuzz REKEYFUZZ $i
+        
+	get_param aggressive AGGRESSIVEE $i
+	get_param verify_cert VERIFYCERT $i
+	get_param pfs PFS $i
+	get_param authby AUTHMODE $i
+
+#	get_param ca_cert CA_CERT $i
+#	get_param remote_cert REMOTE_CERT $i
+#	get_param local_cert LOCAL_CERT $i
+#	get_param local_key LOCAL_KEY $i
+#	get_param local_pass LOCAL_PASS $i
+
+	get_param p1encalg P1ENCALG $i
+	get_param p1hashalg P1HASHALG $i
+	get_param p1dhgroup P1DHGROUP $i
+	get_param p2encalg P2ENCALG $i
+	get_param p2authalg P2AUTHALG $i
+	get_param p2pfsgroup P2PFSGROUP $i
+
+	get_param my_type MYTYPE $i
+	get_param my_identifier MYIDENTIFIER $i
+	get_param peers_type PEERSTYPE $i
+	get_param peers_identifier PEERSIDENTIFIER $i
+	get_param verify_identifier VERIFYIDENTIFIER $i
+
+	[ -z "$p1encalg" ] && p1encalg=3des
+	[ -z "$p1hashalg" ] && p1hashalg=sha1
+	[ -z "$p1dhgroup" ] && p1dhgroup=1
+	p1dhgroup="dh_group $p1dhgroup;"
+	[ -z "$p2encalg" ] && p2encalg=3des
+	[ -z "$p2authalg" ] && p2authalg=hmac_sha1
+	[ -z "$p2pfsgroup" ] && p2pfsgroup=0
+	if [ "$p2pfsgroup" = "0" ]; then
+		p2pfsgroup=""
+	else
+		p2pfsgroup="pfs_group $p2pfsgroup;"
+	fi
+	[ -z "$verify_cert" ] && verify_cert=1
+	[ "$verify_cert" = "1" ] && verify_cert=on
+	[ "$verify_cert" = "0" ] && verify_cert=off
+        
+	[ -z "$verify_identifier" ] && verify_identifier=0
+	[ "$verify_identifier" = "1" ] && verify_identifier=on || verify_identifier=off
+        
+	[ "$local_ipaddr" == "" ] && local_ipaddr=`cat /tmp/ip`
+	[ "$local_netmask" == "" ] && local_netmask="24"
+	[ "$remote_netmask" == "" ] && remote_netmask="24"
+        
+	[ -z "my_identifier" ] && my_identifier="$local_ipaddr"
+        
+	[ "${key_life}" == "" ] && key_life="3600"
+	[ "${ike_life}" == "" ] && ike_life="3600"     
+        
+	if [ "$local_id" != "" ]; then
+		lid="$local_id"
+	else
+		lid="$local_ipaddr"            
+	fi
+        
+	if [ "$remote_ipaddr" != "" ] || [ "$remote_id" != "" ]; then 
+		if [ "$remote_id" != "" ]; then
+			rid="$remote_id"
+		else
+			rid="remote_$i"
+		fi
+	else
+		remote_ipaddr="0.0.0.0"
+		rid="anonymous"
+	fi
+
+	## Authentication info
+	if [ "$authby" = "0" ]; then
+		echo "$remote_ipaddr  $psk" >> $FILE_PSK
+		method="pre_shared_key"
+	else
+		method="rsasig"
+#		decode $ca_cert  > $DIR_CERT/ca_cert${i}
+#		decode $remote_cert > $DIR_CERT/remote_cert${i}
+#		decode $local_cert > $DIR_CERT/local_cert${i}
+#		decode $local_key > $DIR_CERT/local_key${i}
+#		decode $local_pass > $DIR_CERT/local_pass${i}
+	fi
+	[ "$local_network" == "" ] && local_network=`ipcalc -n \` ifconfig eth0 | awk '/inet /{i=split($2, arr, ":"); print(arr[2])}'\` | awk -F= '{print $2}'`
+	[ "${aggressive}" == "1" ] && aggressive_str=",aggressive"
+
+	lmask=`ipcalc -p ${local_network} ${local_netmask} | awk '{FS="="; print $2}'` 
+	rmask=`ipcalc -p ${remote_network} ${remote_netmask} | awk '{FS="="; print $2}'`
+	echo "spdadd $local_network/$lmask $remote_network/$rmask any -P out ipsec esp/tunnel/$local_ipaddr-$remote_ipaddr/require;" >> $FILE_SETKEY
+	echo "spdadd $remote_network/$rmask $local_network/$lmask any -P in  ipsec esp/tunnel/$remote_ipaddr-$local_ipaddr/require;" >> $FILE_SETKEY
+
+	cat << EOF >> $FILE_RACOON
+remote "$rid"
+{
+        exchange_mode main${aggressive_str};
+        verify_cert $verify_cert;
+	remote_address $remote_ipaddr;
+        
+EOF
+	
+	if [ "$my_type" != "" ]; then
+		echo "        my_identifier $my_type \"$my_identifier\";" >> $FILE_RACOON
+		if [ "$peers_type" != "none" ]; then
+			echo "        peers_identifier $peers_type \"$peers_identifier\";" >> $FILE_RACOON
+		fi
+		echo "        verify_identifier $verify_identifier;" >> $FILE_RACOON
+	fi
+	if [ "$authby" != "0" ]; then        
+		echo "        certificate_type x509 \"/tmp/settings/ipsec_ipsectunnelkeys${i}/local.crt\" \"/tmp/settings/ipsec_ipsectunnelkeys${i}/local.key\";" >> $FILE_RACOON
+		echo "        ca_type x509 \"/tmp/settings/ipsec_ipsectunnelkeys${i}/ca.crt\";" >> $FILE_RACOON            
+	fi
+        
+	if [ "$nat_traversal" = "1" ]; then
+		echo "        nat_traversal on;" >> $FILE_RACOON
+	else
+		echo "        nat_traversal off;" >> $FILE_RACOON
+	fi
+
+cat << EOF >> $FILE_RACOON
+        proposal_check obey;    # obey, strict or claim
+
+        proposal {
+EOF
+	echo "          lifetime time ${ike_life} sec;" >> $FILE_RACOON
+	[ "$local_network" == "" ] && local_network=`ipcalc -n \`ifconfig eth0 | awk '/inet /{i=split($2, arr, ":"); print(arr[2])}'\` | awk -F= '{print($2)}'`
+
+	if [ "$local_netmask" == "" ]; then
+		local_address="$local_network"
+	else
+		lmask=`ipcalc -p ${local_network} ${local_netmask} | awk '{FS="="; print $2}'`
+		local_address="$local_network/$lmask"
+	fi
+
+	if [ "$remote_netmask" == "" ]; then
+		remote_address="$remote_network"
+	else
+		rmask=`ipcalc -p ${remote_network} ${remote_netmask} | awk '{FS="="; print $2}'`
+		remote_address="$remote_network/$rmask"
+	fi
+
+	cat << EOF >> $FILE_RACOON
+                encryption_algorithm ${p1encalg};
+                hash_algorithm ${p1hashalg};
+                authentication_method ${method};
+                ${p1dhgroup}
+        }
+}
+
+## IKE phase 2
+sainfo address $local_address any address $remote_address any {
+EOF
+	echo "        lifetime time ${key_life} sec;" >> $FILE_RACOON
+	cat << EOF >> $FILE_RACOON                
+        encryption_algorithm ${p2encalg};
+        authentication_algorithm ${p2authalg};
+        compression_algorithm deflate;
+        ${p2pfsgroup}
+}
+EOF
+	#listen info
+done
+    
+
+#starting
+sleep 3
+chmod 600 $FILE_PSK
+setkey -f $FILE_SETKEY
+exec /usr/sbin/racoon -F -f $FILE_RACOON -l /proc/self/fd/1
+

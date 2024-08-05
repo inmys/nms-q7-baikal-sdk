@@ -1,0 +1,21 @@
+#!/bin/sh
+
+exec 2>&1
+
+export SERVICE=ftpd
+export INSTANCENUM=`cat instancenum`
+. /etc/libsh/loadsettings
+
+#set default values
+export FTPD_WDIR=${FTPD_WDIR:-"/"}
+mkdir -p ${FTPD_WDIR}
+
+export FTPD_OPTS=${FTPD_OPTS:-"-v -w"}
+
+echo
+echo "Starting with parameters:"
+echo
+env | grep "FTPD_"
+echo
+
+exec tcpsvd -vE 0.0.0.0 21 ftpd ${FTPD_OPTS} ${FTPD_WDIR}
